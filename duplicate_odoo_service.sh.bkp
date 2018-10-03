@@ -1,5 +1,4 @@
 #!/bin/bash
-#this is test comment
 #Clone service
 VERS='11'
 VAR=''
