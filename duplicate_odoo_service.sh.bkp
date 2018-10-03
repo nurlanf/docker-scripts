@@ -1,0 +1,56 @@
+#!/bin/bash
+#Clone service
+VERS='11'
+VAR=''
+ENV="dev" #SET TARGET ENVIRONMENT VARIABLE ex. "dev", "dev-1", "stag"
+PORT=8030  #CHANGE PORT NUMBER
+ODOO=odoo$VAR
+DB=db$VAR #MAIN INSTANCE's DB name
+
+DB_VOL=`docker service inspect $DB --pretty|grep Source|awk '{print $3}'`
+LIB_VOL=`docker service inspect $ODOO --pretty|grep Source|awk '{print $3}'|grep ^odoo|grep lib`
+CONF_VOL=`docker service inspect $ODOO --pretty|grep Source|awk '{print $3}'|grep ^odoo|grep -v lib`
+NET=`docker service inspect $ODOO --pretty|grep Networks|awk '{print $2}'`
+NET="$NET-$ENV"
+
+#Clone parameters
+DB_VOL_ENV=$DB_VOL-$ENV
+LIB_VOL_ENV=$LIB_VOL-$ENV
+CONF_VOL_ENV=$CONF_VOL-$ENV
+ODOO=$ODOO-$ENV
+DB=$DB-$ENV
+
+for VOL in $DB_VOL $LIB_VOL $CONF_VOL; do
+    echo "Clonning $VOL to $VOL-$ENV"
+    bash ~/docker-convenience-scripts/docker_clone_volume.sh $VOL $VOL-$ENV > /dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        echo "$VOL to $VOL-$ENV clonned successfully"
+    else
+        echo "ERROR on clonning $VOL" 
+        exit 1
+    sleep 1
+    fi
+done
+
+
+EXTRAS="/home/nurlanfarajov_pl/$ODOO-addons"
+if [ ! -d $EXTRAS ]; then
+    mkdir $EXTRAS 
+fi
+
+docker network create $NET -d overlay
+docker service create --mount type=volume,source=$DB_VOL_ENV,destination=/var/lib/postgresql/data --replicas 1 --env POSTGRES_PASSWORD=odoo --env POSTGRES_USER=odoo --network $NET --name $DB postgres
+docker service create --mount type=volume,source=$LIB_VOL_ENV,destination=/var/lib/odoo --env HOST=$DB --mount type=bind,source=$EXTRAS,destination=/mnt/extra-addons --mount type=volume,source=$CONF_VOL_ENV,destination=/etc/odoo --replicas 1 -p $PORT:8069 --network $NET --name $ODOO odoo:11
+
+sleep 2
+
+docker service inspect $ODOO --pretty
+echo "Please visit http://erpgo.az:$PORT/web to login new $ENV Environment"
+
+
+
+#TO DELETE Services, Volumes and Network, ENTER BELOW COMMANDS AFTER SETTING VARIABLES FOR SPECIFIC PURPOSE
+# docker service rm 
+# docker volume rm postgres-$ODOO $ODOO $ODOO-lib
+# docker network rm $ODOO-net
+
