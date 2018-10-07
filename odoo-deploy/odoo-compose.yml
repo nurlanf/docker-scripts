@@ -1,0 +1,42 @@
+version: '3.1'
+
+services:
+
+  odoo:
+    image: odoo:11
+#    restart: always
+    ports:
+      - 8010:8069
+    networks:
+      net:
+        aliases:
+          - odoo
+    environment:
+      - HOST:db
+    volumes:
+      - /home/nurlanfarajov_pl/odoo-crm2invoice:/mnt/extra-addons
+      - lib-odoo:/var/lib/odoo
+    depends_on:
+      - db
+    deploy:
+      replicas: 3
+
+  db:
+    image: postgres:9
+#    restart: always
+    environment:
+      - POSTGRES_USER=odoo
+      - POSTGRES_PASSWORD=odoo
+    networks:
+      net:
+        aliases:
+          - db
+    volumes:
+      - data-odoo:/var/lib/postgresql/data
+
+volumes:
+  data-odoo:
+  lib-odoo:
+
+networks:
+  net:
